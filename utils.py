@@ -16,6 +16,12 @@ import nltk
 from nltk import WordNetLemmatizer, pos_tag
 
 RANDOM_SEED = 1
+
+nltk.download("averaged_perceptron_tagger", download_dir="nltk")
+nltk.download("wordnet", download_dir="nltk")
+nltk.download("omw-1.4", download_dir="nltk")
+nltk.download("stopwords", download_dir="nltk")
+nltk.download("punkt", download_dir="nltk")
 nltk.data.path.append(os.path.abspath("nltk"))
 
 
