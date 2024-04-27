@@ -1,4 +1,5 @@
 numpy
 pandas
+matplotlib
 nltk
 tensorflow==2.14

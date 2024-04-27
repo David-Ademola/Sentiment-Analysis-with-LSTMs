@@ -1,60 +1,68 @@
 # Sentiment Analysis with LSTM
 
-This project implements sentiment analysis on customer reviews using LSTM (Long Short-Term Memory) neural networks. The goal is to classify whether a review is positive or negative based on the text content.
+This project is a sentiment analysis tool that utilizes a Long Short-Term Memory (LSTM) neural network to classify the sentiment of product reviews as positive or negative.
+
+## Table of Contents
+
+- [Introduction](#introduction)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Example](#example)
+- [Dataset](#dataset)
+- [Contributing](#contributing)
+- [License](#license)
 
 ## Introduction
 
-Sentiment analysis is a natural language processing (NLP) technique used to determine the sentiment expressed in a piece of text. In this project, we use LSTM neural networks, a type of recurrent neural network (RNN), to perform sentiment analysis on customer reviews. The LSTM model is trained on a dataset of customer reviews labeled as positive or negative.
+Sentiment analysis is a natural language processing (NLP) task that involves determining the sentiment expressed in a piece of text, such as a review or comment. This project aims to automatically classify the sentiment of product reviews as either positive or negative using deep learning techniques.
 
 ## Features
 
-- Text preprocessing: The text data is preprocessed by removing stopwords, lemmatizing words, and tokenizing.
-- LSTM model: The main model architecture consists of an embedding layer, an LSTM layer, and fully connected layers with dropout for regularization.
-- TensorFlow data pipeline: TensorFlow's `tf.data.Dataset` is used to create an efficient data pipeline for training, validation, and testing.
+- Preprocesses text data to remove noise and standardize input.
+- Utilizes an LSTM neural network for sentiment classification.
+- Provides a console app for easy sentiment analysis of user-inputted text.
+- Includes model training and evaluation scripts for customization and further development.
 
 ## Installation
 
-To run this project, you'll need Python 3 and the following libraries:
+1. Clone the repository:
 
-- TensorFlow
-- Keras
-- NLTK
-- Pandas
-- Numpy
+   ```bash
+   git clone https://github.com/David-Ademola/Sentiment-Analysis-with-LSTMs
+   ```
 
-You can install these dependencies using pip:
+2. Install the required dependencies:
 
-```
-pip install requirements.txt
-```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ## Usage
 
-1. Clone the repository:
+1. Train the sentiment analysis model:
 
-```
-git clone https://github.com/David-Ademola/Sentiment-Analysis-with-LSTMs.git
-```
+   ```bash
+   python main.py
+   ```
 
-2. Navigate to the project directory:
+2. Use the console app to analyze the sentiment of text:
 
-```
-cd Sentiment-Analysis-with-LSTMs
-```
+   ```bash
+   python app.py
+   ```
 
-3. Run the main script:
+## Example
 
-```
-python main.py
+```python
+# Analyze sentiment using the console app
+Enter your product review: This game is amazing! I love it!
+Thank you for your positive review of our product! 😊
 ```
 
 ## Dataset
 
-The dataset used for training and evaluation is the [Video Games Reviews dataset](https://jmcauley.ucsd.edu/data/amazon/). It contains reviews from Amazon's video games category and includes information such as review text, rating, and verification status.
-
-## Results
-
-The model's performance is evaluated based on metrics such as loss and accuracy on the test dataset. Additionally, the most negative and most positive reviews are printed for qualitative analysis.
+The dataset used for training and evaluation is the [Video Games Reviews dataset](https://www.kaggle.com/datasets/drshoaib/amazon-videogames-reviews). It contains reviews from Amazon's video games category and includes information such as review text, rating, and verification status.
 
 ## Contributing
 

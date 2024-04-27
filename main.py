@@ -1,12 +1,10 @@
-# pylint: disable = W0102
 # pylint: disable = W0221
 # pylint: disable = W0621
 
 # Import necessary libraries
 import os
-import re
+import pickle
 from collections import Counter
-from string import punctuation
 
 import numpy as np
 import tensorflow as tf
@@ -16,150 +14,18 @@ from keras.models import Sequential, save_model
 from keras.preprocessing.text import Tokenizer
 from matplotlib import pyplot
 from pandas import Series, read_csv, read_json, read_pickle
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
 
-# Import NLTK and set its data path
-import nltk
-from nltk import WordNetLemmatizer, pos_tag
+from utils import clean_text, download_data, get_pipeline, split_data
 
-# Set a random seed for reproducibility
-RANDOM_SEED = 1
-nltk.data.path.append(os.path.abspath("nltk"))
+RANDOM_SEED = 1  # Set a random seed for reproducibility
+BATCH_SIZE = 128  # Set batch size
+# Dataset url
+URL: str = (
+    "https://datarepo.eng.ucsd.edu/mcauley_group/data/amazon_2023/raw/review_categories/Video_Games.jsonl.gz"
+)
 
-
-# Function to clean text data
-def clean_text(doc: str) -> list[str]:
-    """A function that cleans a given text document"""
-    # Define stopwords and lemmatizer
-    stop_words = set(stopwords.words("english")) - {"not", "no"}
-    lemmatizer = WordNetLemmatizer()
-
-    # Preprocessing steps
-    doc = doc.lower()
-    doc = doc.replace("n't", " not ")
-    doc = re.sub(r"(?:\'ll |\'re |\'d |\'ve)", " ", doc)
-    doc = re.sub(r"/d+", "", doc)
-
-    # Tokenize and filter stopwords
-    tokens = [
-        word
-        for word in word_tokenize(doc)
-        if word not in stop_words and word not in punctuation
-    ]
-
-    # Part of speech tagging and lemmatization
-    pos_tags = pos_tag(tokens)
-    cleaned_text = [
-        (
-            lemmatizer.lemmatize(word, part_of_speech[0].lower())
-            if part_of_speech[0] in "NV"
-            else word
-        )
-        for word, part_of_speech in pos_tags
-    ]
-
-    return cleaned_text
-
-
-# Function to split dataset into train, validation, and test sets
-def split_data(features: Series, targets: Series, train_fraction: float = 0.8):
-    """Splits a given dataset into training, validation and test sets"""
-    # Separate indices of negative and positive data points
-    neg_indices = Series(targets.loc[(targets == 0)].index)
-    pos_indices = Series(targets.loc[(targets == 1)].index)
-
-    # Determine test set size
-    n_test = int(
-        min([len(neg_indices), len(pos_indices)]) * ((1 - train_fraction) / 2.0)
-    )
-
-    # Split indices into train, validation, and test sets
-    neg_test_inds = neg_indices.sample(n=n_test, random_state=RANDOM_SEED)
-    neg_valid_inds = neg_indices.loc[~neg_indices.isin(neg_test_inds)].sample(
-        n=n_test, random_state=RANDOM_SEED
-    )
-    neg_train_inds = neg_indices.loc[
-        ~neg_indices.isin(neg_test_inds.tolist() + neg_valid_inds.tolist())
-    ]
-
-    # Similarly split positive indices
-    pos_test_inds = pos_indices.sample(n=n_test, random_state=RANDOM_SEED)
-    pos_valid_inds = pos_indices.loc[~pos_indices.isin(pos_test_inds)].sample(
-        n=n_test, random_state=RANDOM_SEED
-    )
-    pos_train_inds = pos_indices.loc[
-        ~pos_indices.isin(pos_test_inds.tolist() + pos_valid_inds.tolist())
-    ]
-
-    # Extract train, validation, and test datasets
-    train_features = features.loc[
-        neg_train_inds.tolist() + pos_train_inds.tolist()
-    ].sample(frac=1.0, random_state=RANDOM_SEED)
-    train_target = targets.loc[
-        neg_train_inds.tolist() + pos_train_inds.tolist()
-    ].sample(frac=1.0, random_state=RANDOM_SEED)
-
-    valid_features = features.loc[
-        neg_valid_inds.tolist() + pos_valid_inds.tolist()
-    ].sample(frac=1.0, random_state=RANDOM_SEED)
-    valid_targets = targets.loc[
-        neg_valid_inds.tolist() + pos_valid_inds.tolist()
-    ].sample(frac=1.0, random_state=RANDOM_SEED)
-
-    test_features = features.loc[
-        neg_test_inds.tolist() + pos_test_inds.tolist()
-    ].sample(frac=1.0, random_state=RANDOM_SEED)
-    test_targets = targets.loc[neg_test_inds.tolist() + pos_test_inds.tolist()].sample(
-        frac=1.0, random_state=RANDOM_SEED
-    )
-
-    print(f"Training data: {len(train_features)}")
-    print(f"Validation data: {len(valid_features)}")
-    print(f"Test data: {len(test_features)}")
-
-    return (
-        (train_features, train_target),
-        (valid_features, valid_targets),
-        (test_features, test_targets),
-    )
-
-
-# Function to create data pipeline
-def get_pipeline(
-    text_seq: list[list[int]],
-    outputs: Series,
-    batch_size: int = 64,
-    bucket_boundaries: list[int] = [5, 15],
-    max_length: int = 50,
-    shuffle: bool = False,
-):
-    """Data pipeline that converts sequences to batches of data"""
-    data_seq = [[b] + a for a, b in zip(text_seq, outputs)]
-    tf_data = tf.ragged.constant(data_seq)[:, :max_length]
-    text_ds = tf.data.Dataset.from_tensor_slices(tf_data)
-
-    # Bucketing based on sequence length
-    bucket_fn = tf.data.experimental.bucket_by_sequence_length(
-        lambda x: tf.cast(tf.shape(x)[0], tf.int32),
-        bucket_boundaries=bucket_boundaries,
-        bucket_batch_sizes=[batch_size] * 3,
-        padded_shapes=None,
-        padding_values=0,
-    )
-    text_ds = text_ds.map(lambda x: x).apply(bucket_fn)
-
-    if shuffle:
-        text_ds = text_ds.shuffle(buffer_size=10 * batch_size)
-
-    # Separate features and labels
-    text_ds = text_ds.map(lambda x: (x[:, 1:], x[:, 0]))
-
-    return text_ds
-
-
-# Set batch size
-BATCH_SIZE = 128
+download_data(URL)
+print("File download complete")
 
 # Read and preprocess data
 review_df = read_json(
@@ -179,6 +45,7 @@ inputs, labels = verified_df["reviewText"], verified_df["targets"]
 # If preprocessed data doesn't exist, clean and save it
 if not os.path.exists(os.path.join("data", "sentiment_features.pkl")):
     inputs = inputs.apply(clean_text)
+    print("Text successfully cleaned")
 
     inputs.to_pickle(os.path.join("data", "sentiment_features.pkl"))
     labels.to_pickle(os.path.join("data", "sentiment_targets.pkl"))
@@ -202,6 +69,10 @@ sequence_length = train_input.str.len()
 
 tokenizer = Tokenizer(n_vocab, lower=False, oov_token="unk")
 tokenizer.fit_on_texts(train_input.to_list())
+
+# Save the tokenizer
+with open(os.path.join("tokenizers", "tokenizer.pkl"), "wb") as tokenizer_file:
+    pickle.dump(tokenizer, tokenizer_file)
 
 train_input = tokenizer.texts_to_sequences(train_input.to_list())
 valid_input = tokenizer.texts_to_sequences(valid_input.to_list())
@@ -286,31 +157,29 @@ print("=" * 50)
 for i in max_pred:
     print(" ".join(tokenizer.sequences_to_texts([features[i]])), "\n")
 
+# Load results
 results = read_csv(os.path.join("eval", "sentiment_analysis.log"), index_col=0)
 print(results)
 
-# Plot both val_loss and loss
-results[["val_loss", "loss"]].plot(kind="line", figsize=(8, 4), title="Loss")
-pyplot.gca().spines[["top", "right"]].set_visible(False)
+# Plot loss
+loss_plot = results[["val_loss", "loss"]].plot(
+    kind="line", figsize=(8, 4), title="Loss"
+)
+loss_plot.spines[["top", "right"]].set_visible(False)
+loss_plot.set_xlabel("Epochs")
+loss_plot.set_ylabel("Loss")
+loss_plot.legend(["Validation Loss", "Training Loss"])
+loss_plot.figure.savefig(os.path.join("plots", "loss_plot.png"))
 
-# Set labels and legend
-pyplot.xlabel("Epochs")
-pyplot.ylabel("Loss")
-pyplot.legend(["Validation Loss", "Training Loss"])
-
-# Show plot
-pyplot.show()
-
-# Plot accuracy and val_accuracy
-results[["val_accuracy", "accuracy"]].plot(
+# Plot accuracy
+accuracy_plot = results[["val_accuracy", "accuracy"]].plot(
     kind="line", figsize=(8, 4), title="Accuracy"
 )
-pyplot.gca().spines[["top", "right"]].set_visible(False)
+accuracy_plot.spines[["top", "right"]].set_visible(False)
+accuracy_plot.set_xlabel("Epochs")
+accuracy_plot.set_ylabel("Accuracy")
+accuracy_plot.legend(["Validation Accuracy", "Training Accuracy"])
+accuracy_plot.figure.savefig(os.path.join("plots", "accuracy_plot.png"))
 
-# Set labels and legend
-pyplot.xlabel("Epochs")
-pyplot.ylabel("Accuracy")
-pyplot.legend(["Validation Accuracy", "Training Accuracy"])
-
-# Show plot
+# Show plots
 pyplot.show()
