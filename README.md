@@ -54,10 +54,10 @@ Sentiment analysis is a natural language processing (NLP) task that involves det
 
 ## Example
 
-```python
+```
 # Analyze sentiment using the console app
 Enter your product review: This game is amazing! I love it!
-Thank you for your positive review of our product! 😊
+>>> Thank you for your positive review of our product! 😊
 ```
 
 ## Dataset
