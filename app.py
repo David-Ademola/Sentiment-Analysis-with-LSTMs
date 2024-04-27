@@ -8,7 +8,7 @@ from keras.preprocessing.sequence import pad_sequences
 from utils import clean_text
 
 MAX_LEN: int = 50
-THRESHOLD: float = 0.5
+THRESHOLD: float = 0.20
 
 # Load pretrained model
 model = load_model(os.path.join("model", "SentimentAnalyser.keras"))
@@ -29,5 +29,7 @@ prediction = model.predict(padded_input)
 # Logic to determine the sentiment label
 if prediction > THRESHOLD:
     print("Thank you for your positive review of our product! 😊")
+elif 0.10 <= prediction <= THRESHOLD:
+    print("We'll work on improving our product. Thank you for your feedback")
 else:
     print("We're so sorry to hear that 😥.")
