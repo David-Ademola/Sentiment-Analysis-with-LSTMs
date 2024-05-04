@@ -30,7 +30,7 @@ def download_data(url: str) -> None:
     # Check if the file already exists
     if not os.path.exists(os.path.join("data", "Video_Games.jsonl.gz")):
         # Get the file from web
-        r = requests.get(url, stream=True, timeout=60)
+        r = requests.get(url, stream=True, timeout=60, verify=False)
         total_size = int(r.headers.get('content-length', 0))
 
         # Create the data directory if it doesn't exist

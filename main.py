@@ -13,12 +13,13 @@ from keras.layers import LSTM, Dense, Dropout, Embedding
 from keras.models import Sequential, save_model
 from keras.preprocessing.text import Tokenizer
 from matplotlib import pyplot
-from pandas import Series, read_csv, read_json, read_pickle
+from pandas import Series, read_csv, read_json, read_pickle, DataFrame, concat
 
 from utils import clean_text, download_data, get_pipeline, split_data
 
-RANDOM_SEED = 1  # Set a random seed for reproducibility
-BATCH_SIZE = 128  # Set batch size
+RANDOM_SEED: int = 1  # Set a random seed for reproducibility
+BATCH_SIZE: int = 128  # Set batch size
+CHUNK_SIZE: int = 10000  # Set a chunk size
 # Dataset url
 URL: str = (
     "https://datarepo.eng.ucsd.edu/mcauley_group/data/amazon_2023/raw/review_categories/Video_Games.jsonl.gz"
@@ -27,20 +28,35 @@ URL: str = (
 download_data(URL)
 print("File download complete")
 
-# Read and preprocess data
-review_df = read_json(
-    os.path.join("data", "Video_Games_5.json"), lines=True, orient="records"
+# Initialize an empty dataframe to hold the concatenated chunks
+review_df = DataFrame()
+
+for chunk in read_json(
+    os.path.join("data", "Video_Games.jsonl"),
+    lines=True,
+    orient="records",
+    chunksize=CHUNK_SIZE,
+):
+    chunk = chunk[["rating", "verified_purchase", "text"]]
+
+    # Drop rows with missing text values and non-empty text
+    chunk = chunk.dropna(subset=["text"])
+    chunk = chunk[chunk["text"].str.strip().str.len() > 0]
+
+    # Concatenate the filtered chunk with the main Dataframe
+    review_df = concat([review_df, chunk], ignore_index=True)
+
+# Filter rows based on verified purchase
+verified_df = review_df.loc[review_df["verified_purchase"]]
+verified_df["targets"] = verified_df["rating"].map(
+    {5.0: 1, 4.0: 1, 3.0: 0, 2.0: 0, 1.0: 0}
 )
-review_df = review_df[["overall", "verified", "reviewTime", "reviewText"]]
-
-review_df = review_df.dropna(subset=["reviewText"])
-review_df = review_df[review_df["reviewText"].str.strip().str.len() > 0]
-
-verified_df = review_df.loc[review_df["verified"]]
-verified_df["targets"] = verified_df["overall"].map({5: 1, 4: 1, 3: 0, 2: 0, 1: 0})
+# Shuffle the Dataframe
 verified_df = verified_df.sample(frac=1.0, random_state=RANDOM_SEED)
 
-inputs, labels = verified_df["reviewText"], verified_df["targets"]
+# Extract inputs and labels
+inputs, labels = verified_df["text"], verified_df["targets"]
+print("Inputs and labels extracted successfully")
 
 # If preprocessed data doesn't exist, clean and save it
 if not os.path.exists(os.path.join("data", "sentiment_features.pkl")):
@@ -81,8 +97,9 @@ test_input = tokenizer.texts_to_sequences(test_input.to_list())
 # Define model architecture
 model = Sequential(
     [
-        Embedding(input_dim=n_vocab + 1, output_dim=128, mask_zero=True),
-        LSTM(128, return_state=False, return_sequences=False),
+        Embedding(input_dim=n_vocab + 1, output_dim=512, mask_zero=True),
+        LSTM(256, return_state=False, return_sequences=False),
+        LSTM(256, return_state=False, return_sequences=False),
         Dense(512, activation=tf.nn.relu),
         Dropout(0.5),
         Dense(1, activation=tf.nn.sigmoid),
